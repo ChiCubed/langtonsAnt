@@ -110,6 +110,10 @@ class Checkbox(BaseUIElement):
                 of entirely white pixels with varying transparency.
                 White pixels are the 'foreground'.
           visible: Whether the checkbox should be drawn or not.
+          anim_duration: The duration of the animation.
+                         Default 0.15 (seconds)
+          ink_duration: The duration of the ink ripples.
+                        Default 0.15 (seconds)
         """
         self.pos = list(pos)
         
@@ -131,7 +135,8 @@ class Checkbox(BaseUIElement):
         self.fill_type = kwargs.get('fill_type','background')
         self.ink = kwargs.get('ink',True)
         
-        self.ink_duration = 0.15
+        self.ink_duration = kwargs.get('ink_duration', 0.15)
+        self.anim_duration = kwargs.get('anim_duration', 0.15)
         
         self.visible = kwargs.get('visible',True)
         
@@ -158,7 +163,7 @@ class Checkbox(BaseUIElement):
                                       pygame.SRCALPHA, 32)
         self._inktmp = self._inktmp.convert_alpha()
         
-        self._radius = self._check_mask.get_width()*2.9 # Just cover the check
+        self._radius = self._check_mask.get_width()*0.75 # Just cover the check
         
         pygame.transform.scale(self._icon,[min(self.size)]*2,
                                self._check_mask)
@@ -180,7 +185,7 @@ class Checkbox(BaseUIElement):
         # We divide by the number of
         # frames per second to get
         # a smooth animation going.
-        self._animprogress += (float(self.checked)*2-1) / (get_fps() * 0.15)
+        self._animprogress += (float(self.checked)*2-1) / (get_fps() * self.anim_duration)
         
         # Clip to range [0.0,1.0]
         self._animprogress = min(max(0.0,self._animprogress),1.0)
@@ -191,6 +196,29 @@ class Checkbox(BaseUIElement):
             
         return 0 <= pos[0]-(self.pos[0]) < self.size[0] and \
                0 <= pos[1]-(self.pos[1]) < self.size[1]
+    
+    def create_ink(self):
+        """
+        Generate an ink ripple on command.
+        Useful if programmatically setting a
+        checkbox state.
+        """
+        if self.ink:
+            self._inks.append(get_time())
+            
+    def toggle(self, ink = True):
+        """
+        Toggle the checkbox.
+        Has one argument, ink,
+        which represents whether
+        to create an ink ripple or
+        not. (Obviously if self.ink
+        is false no ink ripple will
+        be created.)
+        """
+        self.checked ^= True
+        if ink: self.create_ink()
+            
         
     def handle_event(self, event, mousepos):
         if not self.visible:
@@ -199,10 +227,7 @@ class Checkbox(BaseUIElement):
         # If the event was a click on the button
         if event.type == pygame.MOUSEBUTTONUP and \
            self.collide(mousepos):
-            self.checked = False if self.checked else True
-            # Add an ink ripple
-            if self.ink:
-                self._inks.append(get_time())
+            self.toggle()
 
     def draw(self, surface):
         if not self.visible:
@@ -251,7 +276,7 @@ class Checkbox(BaseUIElement):
                 self._innertmp.fill((255,255,255,0))
                 pygame.draw.circle(self._innertmp, self.colour,
                                    (self.size[0]//2,self.size[1]//2),
-                                   int(self._radius*self._animprogress/5)
+                                   int(self._radius*self._animprogress)
                                    )
                 self._innertmp.blit(self._check_mask, (0,0),
                                     None, pygame.BLEND_RGBA_MULT)
@@ -266,11 +291,15 @@ class Checkbox(BaseUIElement):
                 newinks.append(t)
                 self._inktmp.fill((255,255,255,0))
                 pygame.draw.circle(self._inktmp, self.colour[:3]+
-                                   [255-int(255*(curr_time-t)/(self.ink_duration*1000))],
+                                   [255 - int(255 * 
+                                              (curr_time-t) / 
+                                              (self.ink_duration*1000)
+                                              )],
                                    [min(self.size)]*2,
                                    int(min(self.size)/2+
-                                       (min(self.size)/1.5)*
-                                       math.sqrt( # So we have a deceleration curve
+                                       (min(self.size)/1.8)*
+                                       # Deceleration curve
+                                       math.sqrt(
                                             (curr_time-t)/
                                             (self.ink_duration*1000)
                                             )
@@ -291,6 +320,9 @@ class Checkbox(BaseUIElement):
                           
 
 class Container(BaseUIElement):
+    """
+    A container for other elements.
+    """
     def __init__(self, pos, **kwargs):
         """
         Initialises the Container object.
@@ -377,3 +409,53 @@ class Container(BaseUIElement):
             c.draw(self.surface)
         
         surface.blit(self.surface,self.pos)
+        
+
+class UnboundedContainer(Container):
+    """
+    Similar to a Container, but without
+    any size. (So it draws straight onto
+    the screen.) It will not draw anything
+    on the screen underneath its children
+    i.e. has no background colour.
+    
+    This is basically just an 'invisible' container
+    that allows you to logically group elements
+    without it having any effect on how they
+    are drawn.
+    
+    It still has a visibility attribute so
+    it can be made invisible.
+    """
+    def __init__(self, pos, **kwargs):
+        """
+        Initialises the UnboundedContainer object.
+        Allows the following keyword arguments:
+          children: The container's children.
+          visible: Whether the container is
+                   visible or not.
+        """
+        self.pos = list(pos)
+        
+        self.children = kwargs.get('children',[])
+        self.visible = kwargs.get('visible',True)
+        
+    
+    # Override these to make 'size' just a normal
+    # attribute of the class, since in an
+    # UnboundedContainer it has no special meaning.
+    @property
+    def size(self):
+        return self.size
+    
+    @size.setter
+    def size(self, size):
+        self.size = size
+        
+            
+    def draw(self, surface):
+        if not self.visible:
+            return
+        
+        for c in self.children:
+            c.draw(surface)
