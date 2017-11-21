@@ -2,7 +2,7 @@ import pygame, sys
 
 
 WINDOW_SIZE = (500,500)
-FPS         = 60.0
+FPS = 60.0
 
 
 pygame.init()
@@ -31,13 +31,36 @@ def _temp_get_fps():
     # Prevent get_fps from
     # ever returning 0.
     return FPS
-    ui.get_fps = clock.get_fps
-
 
 ui.get_fps = _temp_get_fps
 
 
-screenContainer = ui.UnboundedContainer((0,0))
+# A test scene
+screenContainer = ui.UnboundedContainer()
+
+def calc(box = None, mpos = None):
+    v = 0
+    for c in screenContainer.children[:0:-1]:
+        v *= 2
+        v += c.checked
+    screenContainer.children[0].text = str(v)
+
+p = [450,450]
+def add_checkbox(btn, mpos):    
+    if p[0] < 0:
+        p[1] -= 50
+        p[0] = 450
+    if p[1] < 100:
+        return
+    screenContainer.children.append(ui.Checkbox(
+        p,
+        colour=(p[0]*255//500,p[1]*255//500,(p[0]-p[1]+500)*127//500),
+        onchange=calc))
+    p[0] -= 50
+    
+    calc()
+
+screenContainer.children.append(ui.Button((0,0), size=(500,100), text='hello world', onclick=add_checkbox))
 
 
 while 1:
